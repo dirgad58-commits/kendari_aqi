@@ -35,7 +35,16 @@ def load_artifacts():
     """Mengembalikan (model, scaler, metadata, error). Error berisi pesan jika gagal."""
     try:
         meta = json.loads((MODEL_DIR / "model_metadata.json").read_text(encoding="utf-8"))
-        model = _load(MODEL_DIR / "xgboost_pm25_model.pkl")
+        try:
+            model = _load(MODEL_DIR / "xgboost_pm25_model.pkl")
+        except Exception:
+            json_model = MODEL_DIR / "xgboost_pm25_model.json"
+            if json_model.exists():
+                import xgboost as xgb
+                model = xgb.XGBRegressor()
+                model.load_model(str(json_model))
+            else:
+                raise
         scaler = _load(MODEL_DIR / "scaler.pkl")
         return model, scaler, meta, None
     except Exception as exc:  # noqa: BLE001
@@ -45,7 +54,6 @@ def load_artifacts():
 def build_features(d: date, *, temperature_c, humidity_pct, rainfall_mm, wind_speed_kmh,
                    lag1, lag3, lag7, roll7, is_holiday=False, extra=None) -> dict:
     month_angle = 2 * math.pi * d.month / 12
-    # Sama dengan notebook: day_sin/day_cos memakai hari dalam pekan (0-6) / 7
     day_angle = 2 * math.pi * d.weekday() / 7.0
     doy_angle = 2 * math.pi * d.timetuple().tm_yday / 365.25
     row = {
@@ -68,7 +76,7 @@ def build_features(d: date, *, temperature_c, humidity_pct, rainfall_mm, wind_sp
         "doy_sin": math.sin(doy_angle),
         "doy_cos": math.cos(doy_angle),
     }
-    row.update(extra or {})  # fitur tambahan (lag cuaca/polutan) dari input pengguna
+    row.update(extra or {})
     return row
 
 
@@ -92,15 +100,18 @@ def load_history():
     """Membaca dataset hasil ETL bila tersedia; None jika tidak ada."""
     if not DATA_FILE.exists():
         return None
-    df = pd.read_csv(DATA_FILE)
-    if "date" not in df.columns or "pm25" not in df.columns:
+    try:
+        df = pd.read_csv(DATA_FILE)
+        if "date" not in df.columns or "pm25" not in df.columns:
+            return None
+        df["date"] = pd.to_datetime(df["date"])
+        return df.sort_values("date").reset_index(drop=True)
+    except Exception:
         return None
-    df["date"] = pd.to_datetime(df["date"])
-    return df.sort_values("date").reset_index(drop=True)
 
 
 def defaults_from_history(df):
-    """Nilai awal lag dari data terakhir (untuk mengisi sidebar)."""
+    """Nilai awal lag dari data terakhir (untuk mengisi input awal)."""
     if df is None or len(df) < 7:
         return None
     s = df["pm25"].dropna().tolist()
@@ -114,7 +125,6 @@ def defaults_from_history(df):
     }
 
 
-# Fitur yang dihitung otomatis dari tanggal, cuaca, dan lag PM2.5.
 COMPUTED = {
     "temperature_c", "humidity_pct", "rainfall_mm", "wind_speed_kmh", "rain_x_wind",
     "is_weekend", "is_holiday", "day_of_week", "month_sin", "month_cos", "day_sin", "day_cos",
@@ -147,4 +157,7 @@ def extra_default(name: str, features: list, scaler, df=None) -> float:
                 return round(float(table[name]()), 2)
         except Exception:  # noqa: BLE001
             pass
-    return round(float(scaler.mean_[features.index(name)]), 2)
+    try:
+        return round(float(scaler.mean_[features.index(name)]), 2)
+    except Exception:
+        return 0.0

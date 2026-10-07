@@ -6,6 +6,7 @@ WHO_DAILY_LIMIT = 15.0  # µg/m³, pedoman WHO 2021 (rata-rata 24 jam)
 
 @dataclass(frozen=True)
 class Category:
+    level: int
     name: str
     color: str
     c_low: float
@@ -16,18 +17,18 @@ class Category:
 
 
 CATEGORIES = [
-    Category("Baik", "#2e9e5b", 0.0, 9.0, 0, 50,
-             "Udara bersih. Aktivitas di luar ruangan aman untuk semua orang."),
-    Category("Sedang", "#e0b100", 9.1, 35.4, 51, 100,
-             "Kualitas udara dapat diterima. Orang yang sangat sensitif sebaiknya mengurangi aktivitas berat di luar."),
-    Category("Tidak sehat bagi kelompok sensitif", "#f08a24", 35.5, 55.4, 101, 150,
-             "Anak-anak, lansia, dan penderita asma atau penyakit jantung sebaiknya membatasi aktivitas di luar ruangan."),
-    Category("Tidak sehat", "#d64545", 55.5, 125.4, 151, 200,
-             "Semua orang mulai terdampak. Kurangi aktivitas berat di luar dan gunakan masker bila harus keluar."),
-    Category("Sangat tidak sehat", "#8a4fa3", 125.5, 225.4, 201, 300,
-             "Peringatan kesehatan. Hindari aktivitas di luar ruangan dan tutup ventilasi rumah."),
-    Category("Berbahaya", "#7a2237", 225.5, 325.4, 301, 500,
-             "Kondisi darurat. Tetap di dalam ruangan dan ikuti arahan otoritas kesehatan."),
+    Category(1, "Baik", "#2e9e5b", 0.0, 9.0, 0, 50,
+             "Udara bersih. Kualitas udara sangat baik dan aktivitas luar ruangan aman bagi seluruh kalangan."),
+    Category(2, "Sedang", "#e0b100", 9.1, 35.4, 51, 100,
+             "Kualitas udara dapat diterima. Individu yang luar biasa sensitif disarankan mengurangi aktivitas fisik berat di luar."),
+    Category(3, "Tidak sehat bagi kelompok sensitif", "#f08a24", 35.5, 55.4, 101, 150,
+             "Anak-anak, lansia, dan penderita asma/jantung sebaiknya membatasi aktivitas berat di luar ruangan."),
+    Category(4, "Tidak sehat", "#d64545", 55.5, 125.4, 151, 200,
+             "Masyarakat umum mulai merasakan dampak kesehatan. Gunakan masker medis/N95 bila harus beraktivitas di luar."),
+    Category(5, "Sangat tidak sehat", "#8a4fa3", 125.5, 225.4, 201, 300,
+             "Peringatan kesehatan darurat. Hindari segala aktivitas fisik di luar ruangan dan tutup ventilasi rumah."),
+    Category(6, "Berbahaya", "#7a2237", 225.5, 325.4, 301, 500,
+             "Tingkat bahaya darurat bagi seluruh populasi. Wajib berada di dalam ruangan dengan alat pemurni udara."),
 ]
 
 
