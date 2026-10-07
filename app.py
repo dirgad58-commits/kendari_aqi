@@ -7,8 +7,8 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from utils.aqi import CATEGORIES, WHO_DAILY_LIMIT, get_category, pm25_to_aqi
-from utils.predictor import (build_features, defaults_from_history, feature_importance,
-                             load_artifacts, load_history, predict_pm25)
+from utils.predictor import (build_features, defaults_from_history, extra_default, extra_features,
+                             feature_importance, load_artifacts, load_history, predict_pm25)
 
 ROOT = Path(__file__).parent
 
@@ -37,6 +37,11 @@ FEATURE_LABELS = {
     "day_sin": "Hari dalam pekan (sinus)", "day_cos": "Hari dalam pekan (kosinus)",
     "pm25_lag_1d": "PM2.5 1 hari lalu", "pm25_lag_3d": "PM2.5 3 hari lalu",
     "pm25_lag_7d": "PM2.5 7 hari lalu", "pm25_rolling_mean_7d": "Rata-rata PM2.5 7 hari",
+    "rain_lag_1d": "Hujan kemarin (mm)", "rain_sum_3d": "Total hujan 3 hari (mm)",
+    "wind_lag_1d": "Angin kemarin (km/jam)", "wind_mean_3d": "Rata-rata angin 3 hari (km/jam)",
+    "humidity_lag_1d": "Kelembapan kemarin (%)", "pm10_lag_1d": "PM10 kemarin",
+    "no2_lag_1d": "NO2 kemarin", "co_lag_1d": "CO kemarin", "o3_lag_1d": "O3 kemarin",
+    "doy_sin": "Musim (sinus)", "doy_cos": "Musim (kosinus)",
 }
 
 # ------------------------------------------------------------------ load model
@@ -71,6 +76,15 @@ with st.sidebar:
     lag3 = st.number_input("3 hari sebelumnya", 0.0, 500.0, float(d["lag3"]), 0.1)
     lag7 = st.number_input("7 hari sebelumnya", 0.0, 500.0, float(d["lag7"]), 0.1)
     roll7 = st.number_input("Rata-rata 7 hari terakhir", 0.0, 500.0, float(d["roll7"]), 0.1)
+    extra_vals = {}
+    extras = extra_features(FEATURES)
+    if extras:
+        with st.expander("Data pendukung hari sebelumnya"):
+            st.caption("Dipakai model versi terbaru. Nilai awal dari data terakhir atau rata-rata data latih.")
+            for name in extras:
+                extra_vals[name] = st.number_input(
+                    FEATURE_LABELS.get(name, name), 0.0, 100000.0,
+                    float(extra_default(name, FEATURES, scaler, history)), 0.1, key=f"extra_{name}")
     if hist_defaults:
         st.caption("Nilai awal diambil dari data terakhir di dataset.")
     else:
@@ -97,7 +111,7 @@ tab_pred, tab_sim, tab_perf, tab_hist, tab_about = st.tabs(
 
 def run(weather: dict) -> float:
     row = build_features(target_date, **weather, lag1=lag1, lag3=lag3, lag7=lag7,
-                         roll7=roll7, is_holiday=is_holiday)
+                         roll7=roll7, is_holiday=is_holiday, extra=extra_vals)
     return predict_pm25(model, scaler, FEATURES, [row])[0]
 
 
@@ -166,7 +180,7 @@ with tab_sim:
                         dict(temperature_c=24.5, humidity_pct=96.0, rainfall_mm=45.0, wind_speed_kmh=7.0)),
     }
     rows = [build_features(target_date, **w, lag1=lag1, lag3=lag3, lag7=lag7, roll7=roll7,
-                           is_holiday=is_holiday) for _, w in scenarios.values()]
+                           is_holiday=is_holiday, extra=extra_vals) for _, w in scenarios.values()]
     preds = predict_pm25(model, scaler, FEATURES, rows)
 
     cards = ""

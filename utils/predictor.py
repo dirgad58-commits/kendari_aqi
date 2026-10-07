@@ -17,8 +17,17 @@ def _load(path: Path):
         import joblib
         return joblib.load(path)
     except Exception:
-        with open(path, "rb") as f:
-            return pickle.load(f)
+        try:
+            with open(path, 'rb') as f:
+                return pickle.load(f)
+        except Exception:
+            try:
+                import xgboost as xgb
+                m = xgb.XGBRegressor()
+                m.load_model(str(path))
+                return m
+            except Exception:
+                raise
 
 
 @st.cache_resource(show_spinner="Memuat model...")
@@ -34,11 +43,12 @@ def load_artifacts():
 
 
 def build_features(d: date, *, temperature_c, humidity_pct, rainfall_mm, wind_speed_kmh,
-                   lag1, lag3, lag7, roll7, is_holiday=False) -> dict:
+                   lag1, lag3, lag7, roll7, is_holiday=False, extra=None) -> dict:
     month_angle = 2 * math.pi * d.month / 12
     # Sama dengan notebook: day_sin/day_cos memakai hari dalam pekan (0-6) / 7
     day_angle = 2 * math.pi * d.weekday() / 7.0
-    return {
+    doy_angle = 2 * math.pi * d.timetuple().tm_yday / 365.25
+    row = {
         "temperature_c": temperature_c,
         "humidity_pct": humidity_pct,
         "rainfall_mm": rainfall_mm,
@@ -55,7 +65,11 @@ def build_features(d: date, *, temperature_c, humidity_pct, rainfall_mm, wind_sp
         "pm25_lag_3d": lag3,
         "pm25_lag_7d": lag7,
         "pm25_rolling_mean_7d": roll7,
+        "doy_sin": math.sin(doy_angle),
+        "doy_cos": math.cos(doy_angle),
     }
+    row.update(extra or {})  # fitur tambahan (lag cuaca/polutan) dari input pengguna
+    return row
 
 
 def predict_pm25(model, scaler, features: list, rows: list) -> list:
@@ -98,3 +112,39 @@ def defaults_from_history(df):
         "lag7": round(s[-7], 1),
         "roll7": round(sum(s[-7:]) / 7, 1),
     }
+
+
+# Fitur yang dihitung otomatis dari tanggal, cuaca, dan lag PM2.5.
+COMPUTED = {
+    "temperature_c", "humidity_pct", "rainfall_mm", "wind_speed_kmh", "rain_x_wind",
+    "is_weekend", "is_holiday", "day_of_week", "month_sin", "month_cos", "day_sin", "day_cos",
+    "pm25_lag_1d", "pm25_lag_3d", "pm25_lag_7d", "pm25_rolling_mean_7d", "doy_sin", "doy_cos",
+}
+
+
+def extra_features(features: list) -> list:
+    """Fitur model yang harus diisi pengguna (tidak bisa dihitung otomatis)."""
+    return [f for f in features if f not in COMPUTED]
+
+
+def extra_default(name: str, features: list, scaler, df=None) -> float:
+    """Nilai awal: dari data terakhir dataset bila ada, selain itu rata-rata data latih."""
+    if df is not None:
+        try:
+            last = lambda col, k=1: df[col].iloc[-k:]
+            table = {
+                "rain_lag_1d": lambda: last("rainfall_mm").iloc[-1],
+                "rain_sum_3d": lambda: last("rainfall_mm", 3).sum(),
+                "wind_lag_1d": lambda: last("wind_speed_kmh").iloc[-1],
+                "wind_mean_3d": lambda: last("wind_speed_kmh", 3).mean(),
+                "humidity_lag_1d": lambda: last("humidity_pct").iloc[-1],
+                "pm10_lag_1d": lambda: last("pm10").iloc[-1],
+                "no2_lag_1d": lambda: last("no2").iloc[-1],
+                "co_lag_1d": lambda: last("co").iloc[-1],
+                "o3_lag_1d": lambda: last("o3").iloc[-1],
+            }
+            if name in table:
+                return round(float(table[name]()), 2)
+        except Exception:  # noqa: BLE001
+            pass
+    return round(float(scaler.mean_[features.index(name)]), 2)
