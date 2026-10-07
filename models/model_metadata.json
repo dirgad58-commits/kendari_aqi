@@ -1,14 +1,14 @@
 {
     "city": "Kota Kendari",
     "algorithm": "XGBoost Regressor (Extreme Gradient Boosting)",
-    "created_at": "2026-10-06 22:47:22",
+    "created_at": "2026-10-07 06:38:47",
     "metrics": {
-        "mae": 2.0336782341572777,
-        "rmse": 2.8236618668481475,
-        "r2": 0.4383675354775043
+        "mae": 2.051169678986962,
+        "rmse": 2.8953331363015096,
+        "r2": 0.4094945534780189
     },
     "top_features": [
-        "day_cos",
+        "pm25_lag_7d",
         "pm25_lag_3d",
         "month_cos",
         "pm25_lag_1d",
